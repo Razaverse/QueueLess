@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/server.ts",
   "scripts": {
-    "start": "node src/server.ts",
+    "start": "tsx src/server.ts",
     "dev": "tsx --watch src/server.ts",
     "seed:admin": "node -e \"process.geteuid=()=>0;import('tsx/esm/api').then(({register})=>{register();return import('./src/scripts/createPlatformAdmin.ts')})\""
   },
