@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import bcrypt from "bcryptjs";
+import type { Prisma } from "../../generated/prisma/client.js";
 
 import prisma from "../db.js";
 
@@ -16,7 +17,22 @@ const clinicSelect = {
   status: true,
   createdAt: true,
   updatedAt: true,
-} as const;
+} satisfies Prisma.ClinicSelect;
+
+const clinicDashboardSelect = {
+  ...clinicSelect,
+  doctors: {
+    select: {
+      id: true,
+      name: true,
+      specialization: true,
+      consultationDurationMinutes: true,
+      isActive: true,
+      schedules: { select: { id: true, dayOfWeek: true, startTime: true, endTime: true, isActive: true }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] },
+    },
+    orderBy: { name: "asc" },
+  },
+} satisfies Prisma.ClinicSelect;
 
 function cleanRequired(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -127,7 +143,7 @@ export async function getMyClinic(req: Request, res: Response) {
   try {
     const staff = await prisma.clinicStaff.findUnique({
       where: { userId: req.user!.userId },
-      select: { clinic: { select: clinicSelect } },
+      select: { clinic: { select: clinicDashboardSelect } },
     });
     if (!staff) return res.status(404).json({ success: false, message: "No clinic is associated with this account" });
     return res.status(200).json({ success: true, clinic: staff.clinic });

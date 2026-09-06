@@ -17,6 +17,16 @@ export async function listPendingClinics(_req: Request, res: Response) {
   }
 }
 
+export async function listClinics(_req: Request, res: Response) {
+  try {
+    const clinics = await prisma.clinic.findMany({ select: adminClinicSelect, orderBy: { createdAt: "desc" } });
+    return res.status(200).json({ success: true, clinics });
+  } catch (error) {
+    console.error("Clinics list error:", error);
+    return res.status(500).json({ success: false, message: "Unable to retrieve clinics" });
+  }
+}
+
 function updateStatus(status: "APPROVED" | "REJECTED" | "SUSPENDED") {
   return async (req: Request, res: Response) => {
     try {
