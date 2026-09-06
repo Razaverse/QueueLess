@@ -1,0 +1,5 @@
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { apiRequest } from "../lib/auth";
+export default function AppointmentsPage() { const [items, setItems] = useState([]); const [error, setError] = useState(""); useEffect(() => { apiRequest("/api/appointments/mine").then((data) => setItems(data.appointments)).catch((e) => setError(e.message)); }, []); return <main className="min-h-screen bg-slate-50 p-4 text-slate-900 sm:p-8"><section className="mx-auto max-w-4xl"><Link href="/dashboard" className="font-bold text-teal-700">QueueLess</Link><h1 className="mt-2 text-3xl font-bold">My appointments</h1>{error && <p className="mt-4 text-red-700">{error}</p>}<div className="mt-6 space-y-3">{items.map((item) => <article key={item.id} className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><strong>{item.clinic.name} · {item.doctor.name}</strong><p className="mt-1 text-sm text-slate-600">{new Date(item.startTime).toLocaleString()} · {item.status}</p></article>)}{items.length === 0 && <p className="text-slate-600">No appointments yet.</p>}</div></section></main>; }

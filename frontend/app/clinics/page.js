@@ -1,0 +1,16 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { apiRequest } from "../lib/auth";
+
+export default function ClinicsPage() {
+  const [clinics, setClinics] = useState([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => { let active = true; const handle = setTimeout(async () => { setLoading(true); try { const data = await apiRequest(`/api/clinics${search ? `?search=${encodeURIComponent(search)}` : ""}`); if (active) setClinics(data.clinics); } catch (requestError) { if (active) setError(requestError.message); } finally { if (active) setLoading(false); } }, 200); return () => { active = false; clearTimeout(handle); }; }, [search]);
+
+  return <main className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold text-teal-700">Care nearby</p><h1 className="mt-1 text-3xl font-bold">Find an approved clinic</h1><p className="mt-2 text-slate-600">Explore clinics, review active doctors, and join today&apos;s queue when ready.</p></div><Link href="/clinic/register" className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50">Register a clinic</Link></div><label className="mt-7 block"><span className="sr-only">Search clinics</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by clinic name or city" className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-teal-600 focus:bg-white focus:ring-4 focus:ring-teal-100" /></label>{error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-red-700">{error}</p>}<div className="mt-6 grid gap-4 md:grid-cols-2">{loading ? <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-slate-600">Finding approved clinics…</div> : clinics.map((clinic) => <Link key={clinic.id} href={`/clinics/${clinic.id}`} className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-400 hover:shadow-md"><div className="flex items-start justify-between gap-3"><h2 className="text-xl font-bold">{clinic.name}</h2><span className="text-teal-700 transition group-hover:translate-x-1">→</span></div><p className="mt-3 text-slate-600">{clinic.address}, {clinic.city}</p><p className="mt-5 text-sm font-semibold text-teal-700">{clinic.doctorCount} active doctor{clinic.doctorCount === 1 ? "" : "s"}</p></Link>)}{!loading && clinics.length === 0 && <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-slate-600">No approved clinics match your search. Try another clinic name or city.</div>}</div></section></main>;
+}
