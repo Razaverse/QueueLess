@@ -1,0 +1,10 @@
+import { Router } from "express";
+import { getClinicAppointments, getMyAppointments, getMyHistory, updateAppointmentStatus } from "../controllers/appointmentController.js";
+import { requireAuth } from "../middleware/authMiddleware.js";
+import { requireRole } from "../middleware/roleMiddleware.js";
+const router = Router();
+router.get("/mine", requireAuth, requireRole("PATIENT"), getMyAppointments);
+router.get("/history/mine", requireAuth, requireRole("PATIENT"), getMyHistory);
+router.get("/clinics/:clinicId", requireAuth, requireRole("CLINIC_ADMIN", "CLINIC_STAFF"), getClinicAppointments);
+router.patch("/clinics/:clinicId/:appointmentId/status", requireAuth, requireRole("CLINIC_ADMIN", "CLINIC_STAFF"), updateAppointmentStatus);
+export default router;

@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  PATIENT
+  CLINIC_ADMIN
+  CLINIC_STAFF
+  PLATFORM_ADMIN
+}
+
+enum ClinicStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum QueueStatus {
+  WAITING
+  CALLED
+  IN_CONSULTATION
+  COMPLETED
+  SKIPPED
+  NO_SHOW
+  CANCELLED
+}
+
+enum NotificationType {
+  QUEUE_JOINED
+  QUEUE_UPDATED
+  YOUR_TURN
+  APPOINTMENT_CONFIRMED
+  APPOINTMENT_CANCELLED
+  GENERAL
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  phone        String?
+  role         UserRole
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patient       Patient?
+  clinicStaff   ClinicStaff?
+  notifications Notification[]
+}
+
+model Patient {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  dateOfBirth DateTime?
+  gender      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+  queueEntries QueueEntry[]
+  records      PatientRecord[]
+}
+
+model Clinic {
+  id          String       @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  address     String
+  city        String
+  state       String?
+  postalCode  String?
+  description String?
+  status      ClinicStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  staff          ClinicStaff[]
+  doctors        Doctor[]
+  appointments   Appointment[]
+  queueEntries   QueueEntry[]
+  patientRecords PatientRecord[]
+}
+
+model ClinicStaff {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  clinicId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clinicId])
+  @@index([clinicId])
+}
+
+model Doctor {
+  id                          String   @id @default(cuid())
+  clinicId                    String
+  name                        String
+  specialization              String
+  consultationDurationMinutes Int      @default(15)
+  bio                         String?
+  phone                       String?
+  email                       String?
+  isActive                    Boolean  @default(true)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  clinic         Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  schedules      DoctorSchedule[]
+  appointments   Appointment[]
+  queueEntries   QueueEntry[]
+  patientRecords PatientRecord[]
+
+  @@index([clinicId])
+}
+
+model DoctorSchedule {
+  id        String  @id @default(cuid())
+  doctorId  String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  isActive  Boolean @default(true)
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, dayOfWeek])
+}
+
+model Appointment {
+  id        String            @id @default(cuid())
+  patientId String
+  clinicId  String
+  doctorId  String
+  startTime DateTime
+  endTime   DateTime
+  status    AppointmentStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  patient Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic  Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor  Doctor         @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  record  PatientRecord?
+
+  @@index([clinicId, startTime])
+  @@index([doctorId, startTime])
+  @@index([patientId, startTime])
+}
+
+model QueueEntry {
+  id                    String      @id @default(cuid())
+  patientId             String
+  clinicId              String
+  doctorId              String
+  tokenNumber           Int
+  queueDate             DateTime
+  status                QueueStatus @default(WAITING)
+  joinedAt              DateTime    @default(now())
+  calledAt              DateTime?
+  consultationStartedAt DateTime?
+  completedAt           DateTime?
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor  Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, doctorId, queueDate, tokenNumber])
+  @@index([clinicId, doctorId, queueDate, status])
+  @@index([patientId, status])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model PatientRecord {
+  id            String   @id @default(cuid())
+  patientId     String
+  clinicId      String
+  doctorId      String
+  appointmentId String?  @unique
+  visitDate     DateTime @default(now())
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor      Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, visitDate])
+  @@index([clinicId, visitDate])
+}
