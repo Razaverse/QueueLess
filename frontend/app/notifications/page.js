@@ -7,7 +7,7 @@ import { apiRequest } from "../lib/auth";
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]); const [error, setError] = useState("");
   const load = useCallback(async () => { try { const data = await apiRequest("/api/notifications/mine"); setNotifications(data.notifications); } catch (requestError) { setError(requestError.message); } }, []);
-  useEffect(() => { const initial = setTimeout(load, 0); const interval = setInterval(load, 15000); return () => { clearTimeout(initial); clearInterval(interval); }; }, [load]);
+  useEffect(() => { const initial = setTimeout(load, 0); const interval = setInterval(() => { if (document.visibilityState === "visible") load(); }, 15000); return () => { clearTimeout(initial); clearInterval(interval); }; }, [load]);
   async function markRead(id) { try { await apiRequest(`/api/notifications/mine/${id}/read`, { method: "PATCH" }); setNotifications((items) => items.map((item) => item.id === id ? { ...item, isRead: true } : item)); } catch (requestError) { setError(requestError.message); } }
   async function markAllRead() { try { await apiRequest("/api/notifications/mine/read-all", { method: "PATCH" }); setNotifications((items) => items.map((item) => ({ ...item, isRead: true }))); } catch (requestError) { setError(requestError.message); } }
   const unread = notifications.filter((item) => !item.isRead).length;

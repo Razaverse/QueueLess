@@ -47,6 +47,11 @@ function routeParam(value: string | string[]) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function boundedQueryNumber(value: unknown, fallback: number, maximum: number) {
+  const parsed = Number(Array.isArray(value) ? value[0] : value);
+  return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, maximum) : fallback;
+}
+
 function clinicInput(body: Record<string, unknown>) {
   return {
     name: cleanRequired(body.name),
@@ -109,15 +114,20 @@ export async function registerClinic(req: Request, res: Response) {
 export async function listApprovedClinics(req: Request, res: Response) {
   try {
     const search = cleanRequired(req.query.search);
-    const clinics = await prisma.clinic.findMany({
-      where: {
-        status: "APPROVED",
-        ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { city: { contains: search, mode: "insensitive" } }] } : {}),
-      },
+    const page = boundedQueryNumber(req.query.page, 1, 10_000);
+    const limit = boundedQueryNumber(req.query.limit, 20, 50);
+    const where = {
+      status: "APPROVED" as const,
+      ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { city: { contains: search, mode: "insensitive" as const } }] } : {}),
+    };
+    const [clinics, total] = await Promise.all([prisma.clinic.findMany({
+      where,
       select: { ...clinicSelect, _count: { select: { doctors: { where: { isActive: true } } } } },
       orderBy: { name: "asc" },
-    });
-    return res.status(200).json({ success: true, clinics: clinics.map(({ _count, ...clinic }) => ({ ...clinic, doctorCount: _count.doctors })) });
+      skip: (page - 1) * limit,
+      take: limit,
+    }), prisma.clinic.count({ where })]);
+    return res.status(200).json({ success: true, clinics: clinics.map(({ _count, ...clinic }) => ({ ...clinic, doctorCount: _count.doctors })), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
     console.error("Clinic listing error:", error);
     return res.status(500).json({ success: false, message: "Unable to retrieve clinics" });

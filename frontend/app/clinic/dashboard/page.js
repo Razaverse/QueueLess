@@ -22,17 +22,19 @@ export default function ClinicDashboardPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
     async function loadDashboard() {
       try {
-        const clinicData = await apiRequest("/api/clinics/mine");
-        const doctors = clinicData.clinic.doctors ?? (await apiRequest(`/api/clinics/${clinicData.clinic.id}/doctors`)).doctors;
+        const clinicData = await apiRequest("/api/clinics/mine", { signal: controller.signal });
+        const doctors = clinicData.clinic.doctors ?? (await apiRequest(`/api/clinics/${clinicData.clinic.id}/doctors`, { signal: controller.signal })).doctors;
         setClinic(clinicData.clinic);
         setDoctors(doctors);
       } catch (requestError) {
-        setError(requestError.message);
+        if (requestError.name !== "AbortError") setError(requestError.message);
       }
     }
     loadDashboard();
+    return () => controller.abort();
   }, []);
 
   function resetDoctorForm() { setDoctorForm(emptyDoctor); setEditingDoctor(null); }

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import AuthLayout from "../components/AuthLayout";
-import { apiRequest, clearToken, getToken, saveToken } from "../lib/auth";
+import { apiRequest, clearToken, getSessionUser, getToken, saveSessionUser, saveToken } from "../lib/auth";
 import { routeForRole } from "../lib/redirects";
 
 export default function LoginPage() {
@@ -17,8 +17,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!getToken()) return;
+    const cachedUser = getSessionUser();
+    if (cachedUser) {
+      router.replace(routeForRole(cachedUser.role));
+      return;
+    }
     apiRequest("/api/auth/me")
-      .then((data) => router.replace(routeForRole(data.user.role)))
+      .then((data) => { saveSessionUser(data.user); router.replace(routeForRole(data.user.role)); })
       .catch(() => clearToken());
 
   }, [router]);
@@ -34,6 +39,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       saveToken(data.token);
+      saveSessionUser(data.user);
       router.replace(routeForRole(data.user.role));
     } catch (requestError) {
       setError(requestError.message);

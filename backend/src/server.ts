@@ -10,11 +10,13 @@ import queueRoutes from "./routes/queueRoutes.js";
 import appointmentRoutes from "./routes/appointmentRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import { requireAuth } from "./middleware/authMiddleware.js";
+import { performanceMetrics } from "./observability.js";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(performanceMetrics);
 
 // Authentication routes
 app.use("/api/auth", authRoutes);

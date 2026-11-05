@@ -96,6 +96,8 @@ model Clinic {
   appointments   Appointment[]
   queueEntries   QueueEntry[]
   patientRecords PatientRecord[]
+
+  @@index([status, name])
 }
 
 model ClinicStaff {
@@ -186,7 +188,10 @@ model QueueEntry {
 
   @@unique([clinicId, doctorId, queueDate, tokenNumber])
   @@index([clinicId, doctorId, queueDate, status])
+  @@index([clinicId, queueDate, doctorId, tokenNumber])
   @@index([patientId, status])
+  @@index([patientId, queueDate])
+  @@index([patientId, doctorId, queueDate, status])
 }
 
 model Notification {
@@ -200,6 +205,7 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
+  @@index([userId, createdAt])
 }
 
 model PatientRecord {

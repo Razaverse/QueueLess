@@ -15,6 +15,13 @@ function entrySelect() {
     clinic: { select: { id: true, name: true } },
   } satisfies Prisma.QueueEntrySelect;
 }
+function patientEntrySelect() {
+  return { id: true, tokenNumber: true, queueDate: true, status: true, joinedAt: true, calledAt: true, consultationStartedAt: true, completedAt: true,
+    patient: { select: { id: true, user: { select: { name: true } } } },
+    doctor: { select: { id: true, name: true, specialization: true, consultationDurationMinutes: true } },
+    clinic: { select: { id: true, name: true } },
+  } satisfies Prisma.QueueEntrySelect;
+}
 function enrich(entries: Array<any>) {
   const active = entries.filter((entry) => isActive(entry.status)).sort((a, b) => a.tokenNumber - b.tokenNumber);
   return entries.map((entry) => {
@@ -51,8 +58,8 @@ export async function joinQueue(req: Request, res: Response) {
       const latest = await tx.queueEntry.aggregate({ where: { clinicId, doctorId, queueDate }, _max: { tokenNumber: true } });
       const entry = await tx.queueEntry.create({ data: { patientId: patient.id, clinicId, doctorId, queueDate, tokenNumber: (latest._max.tokenNumber ?? 0) + 1 }, select: entrySelect() });
       await tx.notification.create({ data: { userId: patient.userId, type: "QUEUE_JOINED", message: `You joined ${entry.clinic.name}'s queue for ${entry.doctor.name}. Your token is #${entry.tokenNumber}.` } });
-      const entries = await tx.queueEntry.findMany({ where: { clinicId, doctorId, queueDate }, select: entrySelect() });
-      return enrich(entries).find((item) => item.id === entry.id)!;
+      const position = await tx.queueEntry.count({ where: { clinicId, doctorId, queueDate, status: { in: [...activeStatuses] } } });
+      return { ...entry, position, estimatedWaitingMinutes: Math.max(0, position - 1) * entry.doctor.consultationDurationMinutes };
     }, { isolationLevel: "Serializable" });
     return res.status(201).json({ success: true, entry: result });
   } catch (error) {
@@ -68,14 +75,16 @@ export async function getMyQueue(req: Request, res: Response) {
   try {
     const patient = await prisma.patient.findUnique({ where: { userId: req.user!.userId }, select: { id: true } });
     if (!patient) return res.status(403).json({ success: false, message: "Patient account required" });
-    const myEntries = await prisma.queueEntry.findMany({ where: { patientId: patient.id, queueDate: today() }, select: entrySelect(), orderBy: { tokenNumber: "asc" } });
-    const queuePairs = [...new Map(myEntries.map((entry) => [`${entry.clinic.id}:${entry.doctor.id}`, { clinicId: entry.clinic.id, doctorId: entry.doctor.id }])).values()];
-    if (queuePairs.length === 0) return res.status(200).json({ success: true, entries: [] });
-    const entries = await prisma.queueEntry.findMany({ where: { queueDate: today(), OR: queuePairs }, select: entrySelect(), orderBy: { tokenNumber: "asc" } });
-    const grouped = new Map<string, Array<any>>();
-    for (const entry of entries) { const key = `${entry.clinic.id}:${entry.doctor.id}`; grouped.set(key, [...(grouped.get(key) ?? []), entry]); }
-    const myEntryIds = new Set(myEntries.map((entry) => entry.id));
-    return res.status(200).json({ success: true, entries: [...grouped.values()].flatMap(enrich).filter((entry) => myEntryIds.has(entry.id)) });
+    const queueDate = today();
+    const myEntries = await prisma.queueEntry.findMany({ where: { patientId: patient.id, queueDate }, select: patientEntrySelect(), orderBy: { tokenNumber: "asc" } });
+    const positions = await Promise.all(myEntries.map(async (entry) => {
+      if (!isActive(entry.status)) return null;
+      return prisma.queueEntry.count({ where: { clinicId: entry.clinic.id, doctorId: entry.doctor.id, queueDate, status: { in: [...activeStatuses] }, tokenNumber: { lte: entry.tokenNumber } } });
+    }));
+    return res.status(200).json({ success: true, entries: myEntries.map((entry, index) => {
+      const position = positions[index];
+      return { ...entry, position, estimatedWaitingMinutes: position === null ? null : Math.max(0, position - 1) * entry.doctor.consultationDurationMinutes };
+    }) });
   } catch (error) { console.error("Patient queue error:", error); return res.status(500).json({ success: false, message: "Unable to retrieve your queue" }); }
 }
 
